@@ -78,7 +78,6 @@ namespace VaccineInventory.Services
             // Default system users
             // Note: passwords are stored as plain text (acceptable for this lab scope)
             userList.Add(new User(1, "admin", "admin123", "Admin"));
-            userList.Add(new User(2, "staff", "staff123", "Staff"));
         }
 
         // ===== GETTERS =====

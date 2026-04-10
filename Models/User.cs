@@ -5,7 +5,6 @@
 //
 // Default Accounts:
 //   Username : admin    Password : admin123   Role : Admin
-//   Username : staff    Password : staff123   Role : Staff
 //
 // OOP Concepts Used:
 //   - Encapsulation : private backing fields with validated setters

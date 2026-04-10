@@ -9,9 +9,6 @@ A **CLI-based Inventory Management System** built in **C#** using **Object-Orien
 | Role  | Username | Password  |
 |-------|----------|-----------|
 | Admin | `admin`  | `admin123` |
-| Staff | `staff`  | `staff123` |
-
-> ⚠️ The system currently allows only the **admin** account to log in through the login gate in `Program.cs`. The staff account exists in the user list but the login gate is hardcoded to `admin`/`admin123`.
 
 ---
 
@@ -266,4 +263,3 @@ Thrown when adding a product whose name already exists. Carries the existing pro
 > **Requirement:** .NET 6.0 or higher
 
 ---
-
