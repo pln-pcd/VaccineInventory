@@ -1,14 +1,5 @@
-// ============================================================
 // Product.cs
-// Model class representing a single vaccine product in the
-// inventory system.
-//
-// OOP Concepts Used:
-//   - Encapsulation : private backing fields with validated setters
-//   - Properties    : public get/set with business rule enforcement
-//   - Constructor   : initializes all fields at object creation
-//   - Methods       : IsLowStock(), IsExpired(), GetTotalValue()
-// ============================================================
+// represents a single vaccine item in the inventory
 
 using System;
 
@@ -16,20 +7,14 @@ namespace VaccineInventory.Models
 {
     public class Product
     {
-        // ===== Private backing fields (encapsulation) =====
-        // These hold the actual data. Public properties below
-        // control access and enforce validation rules.
+        // private backing fields for validated properties
         private string _vaccineName;
         private int _quantity;
         private decimal _price;
         private int _minimumStockLevel;
 
-        // ===== Properties =====
-
-        // Auto-property — no validation needed for a simple integer ID
         public int ProductId { get; set; }
 
-        // Vaccine name must not be empty or whitespace; trimmed on assignment
         public string VaccineName
         {
             get { return _vaccineName; }
@@ -41,13 +26,11 @@ namespace VaccineInventory.Models
             }
         }
 
-        // Foreign key linking this product to a Category record
         public int CategoryId { get; set; }
 
-        // Foreign key linking this product to a Supplier record
         public int SupplierId { get; set; }
 
-        // Quantity in stock — cannot go negative
+        // stock cant go negative; prevents data corruption from bad input
         public int Quantity
         {
             get { return _quantity; }
@@ -59,7 +42,6 @@ namespace VaccineInventory.Models
             }
         }
 
-        // Unit price in Philippine Peso — cannot be negative
         public decimal Price
         {
             get { return _price; }
@@ -71,11 +53,9 @@ namespace VaccineInventory.Models
             }
         }
 
-        // Expiry date of this batch — used to detect expired vaccines
         public DateTime ExpiryDate { get; set; }
 
-        // The stock level at or below which this product is flagged as "low"
-        // Must be at least 1 so that zero-stock is always treated as low
+        // minimum must be at least 1 so that zero stock always triggers a low-stock alert
         public int MinimumStockLevel
         {
             get { return _minimumStockLevel; }
@@ -87,10 +67,6 @@ namespace VaccineInventory.Models
             }
         }
 
-        // ===== Constructor =====
-        // Initializes all product fields at once.
-        // All assignments go through the validated properties above,
-        // so invalid data is caught immediately at creation time.
         public Product(int productId, string vaccineName, int categoryId,
                        int supplierId, int quantity, decimal price,
                        DateTime expiryDate, int minimumStockLevel)
@@ -105,25 +81,19 @@ namespace VaccineInventory.Models
             MinimumStockLevel = minimumStockLevel;
         }
 
-        // ===== Methods =====
-
-        // Returns true if current stock is strictly below the minimum stock level.
-        // Used by the dashboard and option 8 (Low Stock view).
+        // true if current stock is below the per-product threshold
         public bool IsLowStock()
         {
             return Quantity < MinimumStockLevel;
         }
 
-        // Returns true if the expiry date has already passed (before today).
-        // Used to flag expired vaccines in the product table.
+        // compares against today's date only, ignoring time-of-day
         public bool IsExpired()
         {
             return ExpiryDate.Date < DateTime.Today;
         }
 
-        // Computes the total monetary value of this vaccine's stock.
-        // Formula: Quantity × Price
-        // Used in option 18 (Total Inventory Value report).
+        // used for the total inventory value report
         public decimal GetTotalValue()
         {
             return Quantity * Price;

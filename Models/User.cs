@@ -1,18 +1,5 @@
-// ============================================================
 // User.cs
-// Model class representing a system user.
-// Used for login authentication at program startup.
-//
-// Default Accounts:
-//   Username : admin    Password : admin123   Role : Admin
-//
-// OOP Concepts Used:
-//   - Encapsulation : private backing fields with validated setters
-//   - Properties    : Username, Password, Role enforce non-empty rules
-//   - Constructor   : sets all fields at object creation
-//   - Method        : ValidatePassword() for credential checking
-//   - Override      : ToString() excludes password for security
-// ============================================================
+// model for system users, used for login
 
 using System;
 
@@ -20,19 +7,12 @@ namespace VaccineInventory.Models
 {
     public class User
     {
-        // ===== Private backing fields (encapsulation) =====
-        // Password is kept private and never exposed directly.
-        // Other fields are also backed privately for consistency.
         private string _username;
         private string _password;
         private string _role;
 
-        // ===== Properties =====
-
-        // Auto-property — no validation needed for the integer ID
         public int UserId { get; set; }
 
-        // Username must not be empty or whitespace; trimmed on assignment
         public string Username
         {
             get { return _username; }
@@ -44,9 +24,7 @@ namespace VaccineInventory.Models
             }
         }
 
-        // Password stored as plain text.
-        // Note: plain-text passwords are acceptable for this CLI lab exam scope.
-        // In a real production system, passwords should be hashed (e.g., BCrypt).
+        // stored as plain text — acceptable for this lab scope, not for production
         public string Password
         {
             get { return _password; }
@@ -58,7 +36,6 @@ namespace VaccineInventory.Models
             }
         }
 
-        // Role identifies what the user can do (e.g., "Admin" or "Staff")
         public string Role
         {
             get { return _role; }
@@ -70,9 +47,6 @@ namespace VaccineInventory.Models
             }
         }
 
-        // ===== Constructor =====
-        // Creates a User with all required fields.
-        // All assignments go through the validated properties above.
         public User(int userId, string username, string password, string role)
         {
             UserId = userId;
@@ -81,21 +55,13 @@ namespace VaccineInventory.Models
             Role = role;
         }
 
-        // ===== Methods =====
-
-        // Validates a login attempt by comparing the input to the stored password.
-        // Returns true if the passwords match, false otherwise.
-        // Note: uses direct string equality — case-sensitive comparison.
+        // direct equality check; would use hashing in a real application
         public bool ValidatePassword(string inputPassword)
         {
             return _password == inputPassword;
         }
 
-        // ===== Override =====
-
-        // Returns user info for display. Password is intentionally excluded
-        // to avoid accidental exposure in logs or console output.
-        // Example output: "[1] admin (Admin)"
+        // password intentionally excluded to avoid accidental exposure in logs or UI
         public override string ToString()
         {
             return $"[{UserId}] {Username} ({Role})";

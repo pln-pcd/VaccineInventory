@@ -1,25 +1,6 @@
-// ============================================================
 // Program.cs
-// Entry point for the Vaccine Inventory Management System.
-// Uses C# Top-Level Statements (no explicit Main method needed).
-//
-// Responsibilities:
-//   1. Shared input helper functions (ReadName, ReadPositiveInt, etc.)
-//   2. Login gate — validates credentials, limits to 3 attempts
-//   3. Main program loop — displays menu, routes to handler methods
-//   4. Handler methods — one per menu option (18 total)
-//
-// Login Credentials:
-//   Username : admin    Password : admin123
-//
-// Menu Options:
-//   [1–5]   Product Management  (Add, View, Search, Update, Delete)
-//   [6–8]   Stock Control       (Restock, Deduct, Low Stock)
-//   [9–12]  Category Management (Add, View, Update, Delete)
-//   [13–16] Supplier Management (Add, View, Update, Delete)
-//   [17–18] Reports             (Transaction History, Total Value)
-//   [0]     Exit
-// ============================================================
+// entry point for the Vaccine Inventory Management System
+// handles login, menu routing, and all handler methods
 
 using VaccineInventory.Services;
 using VaccineInventory.Helpers;
@@ -28,21 +9,16 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 
-// Valid values for filtering transaction history in option 17
 var ValidFilters = new HashSet<string> { "ALL", "ADD", "RESTOCK", "DEDUCT", "UPDATE", "DELETE" };
 
-// Create the InventoryManager — this loads sample data and starts all ID counters
 InventoryManager manager = new InventoryManager();
 
-// =====================================================
-// SHARED INPUT HELPERS
-// Helper functions used across all handler methods
-// to consistently read and validate console input.
-// =====================================================
+// INPUT HELPERS
+// these local functions centralize input parsing and validation,
+// keeping the handler methods clean and focused on flow logic
 
-// Reads a non-empty string that is NOT purely numeric.
-// Used for vaccine names, category names, and supplier names.
-// If allowBack=true, entering "0" returns "0" as a back-signal.
+// reads a non-empty string that's not purely numeric
+// returning "0" signals the caller to go back if allowBack is true
 string ReadName(string prompt, bool allowBack = false)
 {
     while (true)
@@ -64,9 +40,7 @@ string ReadName(string prompt, bool allowBack = false)
     }
 }
 
-// Reads any non-empty, non-whitespace string.
-// No numeric check — used for contact numbers, notes, and general text.
-// If allowBack=true, entering "0" returns "0" as a back-signal.
+// reads any non-empty string (used for free-form text fields)
 string ReadText(string prompt, bool allowBack = false)
 {
     while (true)
@@ -79,8 +53,21 @@ string ReadText(string prompt, bool allowBack = false)
     }
 }
 
-// Reads a positive integer (value must be > 0).
-// If allowBack=true, entering "0" returns 0 as a back-signal.
+// reads and validates a contact number: digits only, 7-15 chars, optional leading '+'
+// loops until valid input is entered rather than deferring to manager to throw
+string ReadContactNumber(string prompt, bool allowBack = false)
+{
+    while (true)
+    {
+        Console.Write(prompt);
+        string value = (Console.ReadLine() ?? string.Empty).Trim();
+        if (allowBack && value == "0") return "0";
+        if (System.Text.RegularExpressions.Regex.IsMatch(value, @"^\+?[0-9]{7,15}$")) return value;
+        Console.WriteLine("  Invalid input. Contact number must be 7-15 digits (digits only, optional leading +).");
+    }
+}
+
+// reads a positive integer; returns 0 as a back signal if allowBack is true
 int ReadPositiveInt(string prompt, bool allowBack = false)
 {
     while (true)
@@ -93,8 +80,7 @@ int ReadPositiveInt(string prompt, bool allowBack = false)
     }
 }
 
-// Reads a non-negative decimal (value must be >= 0).
-// Used for prices where 0 is allowed (e.g. free vaccines).
+// for prices where 0 is valid (e.g. donated/free vaccines)
 decimal ReadNonNegativeDecimal(string prompt)
 {
     while (true)
@@ -106,8 +92,6 @@ decimal ReadNonNegativeDecimal(string prompt)
     }
 }
 
-// Reads a strictly positive decimal (value must be > 0).
-// Used for vaccine prices where free is not a valid entry.
 decimal ReadPositiveDecimal(string prompt)
 {
     while (true)
@@ -119,8 +103,7 @@ decimal ReadPositiveDecimal(string prompt)
     }
 }
 
-// Reads a future date (must be strictly after today).
-// Used for entering vaccine expiry dates when adding a new product.
+// only accepts dates in the future to prevent adding already-expired vaccines
 DateTime ReadFutureDate(string prompt)
 {
     while (true)
@@ -132,9 +115,7 @@ DateTime ReadFutureDate(string prompt)
     }
 }
 
-// Reads a Y/N confirmation from the user.
-// Accepts: y, yes, n, no (case-insensitive).
-// Returns true for yes, false for no.
+// accepts y/yes/n/no, case-insensitive
 bool ReadConfirm(string prompt)
 {
     while (true)
@@ -147,12 +128,10 @@ bool ReadConfirm(string prompt)
     }
 }
 
-// Shorthand helper that asks "Do again?" using ReadConfirm.
-// Used at the end of each handler's loop to decide whether to repeat.
+// shorthand used at the end of every handler loop to ask whether to repeat
 bool AskDoAgain(string label) => ReadConfirm($"\n  {label} [Y/N]: ");
 
-// Reads a Category ID and validates it exists in the system.
-// Returns 0 if the user types "0" (back-signal).
+// these read and validate IDs against the live list so invalid IDs are caught immediately
 int ReadCategoryId(string prompt)
 {
     while (true)
@@ -165,8 +144,6 @@ int ReadCategoryId(string prompt)
     }
 }
 
-// Reads a Supplier ID and validates it exists in the system.
-// Returns 0 if the user types "0" (back-signal).
 int ReadSupplierId(string prompt)
 {
     while (true)
@@ -179,8 +156,6 @@ int ReadSupplierId(string prompt)
     }
 }
 
-// Reads a Product (Vaccine) ID and validates it exists in the system.
-// Returns 0 if the user types "0" (back-signal).
 int ReadVaccineId(string prompt)
 {
     while (true)
@@ -193,15 +168,9 @@ int ReadVaccineId(string prompt)
     }
 }
 
-// =====================================================
 // LOGIN GATE
-// Accepts only the admin account.
-// Allows up to 3 attempts before force-exiting.
-//
-// Credentials:
-//   Username : admin
-//   Password : admin123
-// =====================================================
+// only the hardcoded admin account can log in; 3 failed attempts exits the program
+
 Console.Clear();
 Console.WriteLine();
 Console.WriteLine("  ================================================");
@@ -211,14 +180,12 @@ Console.WriteLine();
 Console.WriteLine("  Please log in to continue.");
 Console.WriteLine();
 
-// Hardcoded credentials for the login gate
-// (The same account also exists in InventoryManager's user list)
 const string validUsername = "admin";
 const string validPassword = "admin123";
 
 User? currentUser = null;
 int loginAttempts = 0;
-const int maxAttempts = 3; // lock out after 3 failed attempts
+const int maxAttempts = 3;
 
 while (currentUser == null)
 {
@@ -230,7 +197,7 @@ while (currentUser == null)
 
     if (username.Trim() == validUsername && password == validPassword)
     {
-        // Credentials match — look up the full User object from the manager
+        // fetch the matching User object so we have role info for the menu header
         currentUser = manager.GetUsers().First(u => u.Username == validUsername);
         Console.WriteLine();
         Console.WriteLine($"  Welcome, {currentUser.Username}  ({currentUser.Role})");
@@ -243,7 +210,6 @@ while (currentUser == null)
         Console.WriteLine("  Invalid username or password.");
         if (loginAttempts >= maxAttempts)
         {
-            // Too many failures — exit the program for security
             Console.WriteLine("  Too many failed attempts. Exiting.");
             Environment.Exit(0);
         }
@@ -252,19 +218,15 @@ while (currentUser == null)
     }
 }
 
-// Show post-login messages and the dashboard before entering the menu loop
 Console.WriteLine();
 Console.WriteLine("  Loading inventory data...");
 Console.WriteLine("  System ready!");
-DisplayHelper.ShowFullDashboard(manager); // shows total products, low stock, expired, total value
+DisplayHelper.ShowFullDashboard(manager);
 DisplayHelper.PressEnter();
 
-// =====================================================
-// MAIN PROGRAM LOOP
-// Displays the menu and routes to the appropriate
-// handler method based on the user's selection.
-// Loop continues until the user enters "0" to exit.
-// =====================================================
+// MAIN LOOP
+// each menu option dispatches to a dedicated handler method below
+
 bool isRunning = true;
 
 while (isRunning)
@@ -278,44 +240,32 @@ while (isRunning)
 
     switch (input)
     {
-        // ── PRODUCT MANAGEMENT ──
-        case "1": HandleAddVaccine(); break; // Add a new vaccine product
-        case "2": HandleViewAllVaccines(); break; // View/filter/sort all products
-        case "3": HandleSearchVaccine(); break; // Search by name/category/supplier/ID
-        case "4": HandleUpdateVaccine(); break; // Edit vaccine name/price/expiry/min stock
-        case "5": HandleDeleteVaccine(); break; // Remove a product from inventory
-
-        // ── STOCK CONTROL ──
-        case "6": HandleRestockVaccine(); break; // Add units to stock
-        case "7": HandleDeductVaccine(); break; // Remove units from stock
-        case "8": HandleLowStock(); break; // Show products below minimum stock level
-
-        // ── CATEGORY MANAGEMENT ──
-        case "9": HandleAddCategory(); break; // Create a new category
-        case "10": HandleViewCategories(); break; // List all categories
-        case "11": HandleUpdateCategory(); break; // Rename a category
-        case "12": HandleDeleteCategory(); break; // Remove a category (if not in use)
-
-        // ── SUPPLIER MANAGEMENT ──
-        case "13": HandleAddSupplier(); break; // Create a new supplier
-        case "14": HandleViewSuppliers(); break; // List all suppliers
-        case "15": HandleUpdateSupplier(); break; // Update supplier name/contact
-        case "16": HandleDeleteSupplier(); break; // Remove a supplier (if not in use)
-
-        // ── REPORTS ──
-        case "17": HandleViewTransactions(); break; // View/filter transaction audit log
-        case "18": HandleTotalValue(); break; // Show total inventory value
-
-        // ── EXIT ──
+        case "1": HandleAddVaccine(); break;
+        case "2": HandleViewAllVaccines(); break;
+        case "3": HandleSearchVaccine(); break;
+        case "4": HandleUpdateVaccine(); break;
+        case "5": HandleDeleteVaccine(); break;
+        case "6": HandleRestockVaccine(); break;
+        case "7": HandleDeductVaccine(); break;
+        case "8": HandleLowStock(); break;
+        case "9": HandleAddCategory(); break;
+        case "10": HandleViewCategories(); break;
+        case "11": HandleUpdateCategory(); break;
+        case "12": HandleDeleteCategory(); break;
+        case "13": HandleAddSupplier(); break;
+        case "14": HandleViewSuppliers(); break;
+        case "15": HandleUpdateSupplier(); break;
+        case "16": HandleDeleteSupplier(); break;
+        case "17": HandleViewTransactions(); break;
+        case "18": HandleTotalValue(); break;
         case "0":
+            // set flag to false so the loop exits cleanly after this iteration
             isRunning = false;
             Console.WriteLine();
             Console.WriteLine($"  Goodbye, {currentUser.Username}. Thank you!");
             Console.WriteLine();
             break;
-
         default:
-            // Any unrecognized input just shows an error and loops back
             Console.WriteLine();
             Console.WriteLine("  Invalid choice. Please select a number from the menu.");
             DisplayHelper.PressEnter();
@@ -323,26 +273,13 @@ while (isRunning)
     }
 }
 
-// =====================================================
 // HANDLER METHODS
-// Each method below corresponds to one menu option.
-// All handlers follow the same pattern:
-//   1. Print a section header
-//   2. Collect and validate user input
-//   3. Call the relevant InventoryManager method
-//   4. Show success or catch and display errors
-//   5. Ask if the user wants to do it again (loop)
-// =====================================================
+// each handler owns one menu action: it collects input, calls the manager, and shows results
+// all handlers loop with AskDoAgain() so users can perform multiple operations without
+// returning to the menu every time
 
-// ══════════════════════════════════════════════════
 // PRODUCT MANAGEMENT
-// ══════════════════════════════════════════════════
 
-// ── [1] Add Product ─────────────────────────────────
-// Collects all product details, shows a summary,
-// then calls manager.AddVaccine().
-// If the product already exists, catches DuplicateProductException
-// and offers to restock the existing product instead.
 void HandleAddVaccine()
 {
     DisplayHelper.PrintSectionHeader("PRODUCT MANAGEMENT", "ADD PRODUCT");
@@ -351,7 +288,7 @@ void HandleAddVaccine()
     bool keepGoing = true;
     while (keepGoing)
     {
-        // Show available categories and suppliers so the user can pick valid IDs
+        // show current categories and suppliers so the user knows valid IDs
         Console.WriteLine("  Categories:");
         foreach (var cat in manager.GetCategories())
             Console.WriteLine($"    {cat.CategoryId}  {cat.CategoryName}");
@@ -370,7 +307,8 @@ void HandleAddVaccine()
         int supId = ReadSupplierId("  Supplier ID         : ");
         if (supId == 0) { DisplayHelper.PrintBack(); return; }
 
-        // Quantity allows 0 (valid to add a product with zero initial stock)
+        // 0 is a valid initial quantity (product registered before stock arrives)
+        // but "0" also means "go back" in other prompts — handled with a dedicated block here
         int qty;
         while (true)
         {
@@ -385,7 +323,7 @@ void HandleAddVaccine()
         DateTime expiry = ReadFutureDate("  Expiry Date (MM/DD/YYYY): ");
         int minStock = ReadPositiveInt("  Min Stock Level     : ");
 
-        // Warn if expiry is within 30 days — near-expiry products are unusual to add
+        // warn early if the vaccine is already close to expiring
         int daysToExpiry = (int)(expiry.Date - DateTime.Today).TotalDays;
         if (daysToExpiry <= 30)
         {
@@ -400,7 +338,7 @@ void HandleAddVaccine()
             }
         }
 
-        // Show summary so the user can review before confirming
+        // show a summary before committing
         Console.WriteLine();
         Console.WriteLine("  Summary:");
         Console.WriteLine($"    Name       : {name}");
@@ -424,8 +362,7 @@ void HandleAddVaccine()
             }
             catch (DuplicateProductException dupEx)
             {
-                // Special case: vaccine with this name already exists
-                // Offer to redirect the user to restock that product instead
+                // vaccine name already exists — offer to restock the existing record instead
                 var dup = manager.GetVaccineById(dupEx.ExistingProductId);
                 Console.WriteLine();
                 Console.WriteLine($"  Product already exists: [{dup!.ProductId}] {dup.VaccineName}  (Qty: {dup.Quantity})");
@@ -455,9 +392,6 @@ void HandleAddVaccine()
     DisplayHelper.PressEnter();
 }
 
-// ── [2] View All Products ────────────────────────────
-// Displays all products with optional filter (ALL/LOW/EXPIRED/OK/Category)
-// and optional sort (NAME/QTY/PRICE/EXPIRY).
 void HandleViewAllVaccines()
 {
     DisplayHelper.PrintSectionHeader("PRODUCT MANAGEMENT", "VIEW ALL PRODUCTS");
@@ -466,22 +400,20 @@ void HandleViewAllVaccines()
     bool keepGoing = true;
     while (keepGoing)
     {
-        // Show available filter options including dynamic category list
         Console.WriteLine("  Filter options:");
-        Console.WriteLine("    ALL      — Show all products");
-        Console.WriteLine("    LOW      — Low stock only");
-        Console.WriteLine("    EXPIRED  — Expired only");
-        Console.WriteLine("    OK       — Sufficient stock & not expired");
+        Console.WriteLine("    ALL      - Show all products");
+        Console.WriteLine("    LOW      - Low stock only");
+        Console.WriteLine("    EXPIRED  - Expired only");
+        Console.WriteLine("    OK       - Sufficient stock & not expired");
 
         var categories = manager.GetCategories();
         if (categories.Count > 0)
         {
             Console.WriteLine("\n  Or filter by Category ID:");
             foreach (var cat in categories)
-                Console.WriteLine($"    {cat.CategoryId,-4} — {cat.CategoryName}");
+                Console.WriteLine($"    {cat.CategoryId,-4} - {cat.CategoryName}");
         }
 
-        // Validate the filter input — must be a keyword or a valid category ID
         string filterInput;
         while (true)
         {
@@ -490,6 +422,7 @@ void HandleViewAllVaccines()
             if (filterInput == "0") { DisplayHelper.PrintBack(); return; }
             if (string.IsNullOrWhiteSpace(filterInput)) { filterInput = "ALL"; break; }
             if (filterInput == "ALL" || filterInput == "LOW" || filterInput == "EXPIRED" || filterInput == "OK") break;
+            // also accept a numeric category ID as a filter
             if (int.TryParse(filterInput, out int cid) && cid > 0 &&
                 manager.GetCategories().Any(c => c.CategoryId == cid)) break;
             Console.WriteLine("  Invalid input. Please try again.");
@@ -499,17 +432,14 @@ void HandleViewAllVaccines()
         List<Product> filtered;
         string filterLabel;
 
-        // Apply the selected filter
         if (int.TryParse(filterInput, out int catId))
         {
-            // Filter by specific category ID
             var cat = manager.GetCategories().First(c => c.CategoryId == catId);
             filtered = allVaccines.Where(v => v.CategoryId == catId).ToList();
             filterLabel = $"Category: {cat.CategoryName}";
         }
         else
         {
-            // Filter by keyword
             (filtered, filterLabel) = filterInput switch
             {
                 "LOW" => (allVaccines.Where(v => v.IsLowStock() && !v.IsExpired()).ToList(), "Low Stock"),
@@ -519,10 +449,10 @@ void HandleViewAllVaccines()
             };
         }
 
-        // Optional sorting (only shown if there are results)
+        // optional sort — skipping input leaves the filtered order unchanged
         if (filtered.Count > 0)
         {
-            Console.Write("\n  Sort by [NAME/QTY/PRICE/EXPIRY — press Enter to skip]: ");
+            Console.Write("\n  Sort by [NAME/QTY/PRICE/EXPIRY - press Enter to skip]: ");
             string sortInput = (Console.ReadLine() ?? string.Empty).Trim().ToUpper();
             filtered = sortInput switch
             {
@@ -534,7 +464,7 @@ void HandleViewAllVaccines()
             };
             if (!string.IsNullOrWhiteSpace(sortInput) &&
                 sortInput != "NAME" && sortInput != "QTY" && sortInput != "PRICE" && sortInput != "EXPIRY")
-                Console.WriteLine("  Unrecognised sort key — displaying in default order.");
+                Console.WriteLine("  Unrecognised sort key - displaying in default order.");
         }
 
         Console.WriteLine($"\n  Showing: [ {filterLabel} ]");
@@ -548,9 +478,6 @@ void HandleViewAllVaccines()
     DisplayHelper.PressEnter();
 }
 
-// ── [3] Search Product ───────────────────────────────
-// Lets the user search by product name, category name, supplier name,
-// or exact product ID. Results are displayed in a table.
 void HandleSearchVaccine()
 {
     DisplayHelper.PrintSectionHeader("PRODUCT MANAGEMENT", "SEARCH PRODUCT");
@@ -568,7 +495,7 @@ void HandleSearchVaccine()
         int searchType;
         while (true)
         {
-            Console.Write("\n  Choose search type [1–4 or 0]: ");
+            Console.Write("\n  Choose search type [1-4 or 0]: ");
             string raw = (Console.ReadLine() ?? string.Empty).Trim();
             if (raw == "0") { DisplayHelper.PrintBack(); return; }
             if (int.TryParse(raw, out searchType) && searchType >= 1 && searchType <= 4) break;
@@ -580,7 +507,7 @@ void HandleSearchVaccine()
 
         if (searchType == 4)
         {
-            // Search by exact product ID
+            // ID search — exact match only
             int searchId;
             while (true)
             {
@@ -595,7 +522,7 @@ void HandleSearchVaccine()
         }
         else
         {
-            // Search by keyword (partial, case-insensitive match)
+            // keyword search — partial, case-insensitive match
             string typeLabel = searchType switch { 1 => "Product Name", 2 => "Category", _ => "Supplier" };
             string keyword = ReadText($"  Enter {typeLabel} keyword: ", allowBack: true);
             if (keyword == "0") { DisplayHelper.PrintBack(); return; }
@@ -623,11 +550,7 @@ void HandleSearchVaccine()
     DisplayHelper.PressEnter();
 }
 
-// ── [4] Update Product ───────────────────────────────
-// Allows editing vaccine name, price, expiry date, and minimum stock level.
-// Leaving a field blank keeps the existing value.
-// Expiry date: keeping an already-expired date is allowed;
-// only actively setting a new past date is rejected.
+// leaving a field blank keeps the current value, so users don't have to retype everything
 void HandleUpdateVaccine()
 {
     DisplayHelper.PrintSectionHeader("PRODUCT MANAGEMENT", "UPDATE PRODUCT");
@@ -646,8 +569,6 @@ void HandleUpdateVaccine()
         Console.WriteLine();
         Console.WriteLine($"  Updating: {existing.VaccineName}");
 
-        // --- Name ---
-        // Blank input = keep current; purely numeric names are rejected
         string newName;
         while (true)
         {
@@ -659,21 +580,18 @@ void HandleUpdateVaccine()
             newName = trimmed; break;
         }
 
-        // --- Price ---
-        // Blank input = keep current; must be 0 or greater
         decimal newPrice;
         while (true)
         {
-            Console.Write($"  New Price       [₱{existing.Price:F2}]: ");
+            Console.Write($"  New Price       [P{existing.Price:F2}]: ");
             string raw = (Console.ReadLine() ?? string.Empty).Trim();
             if (string.IsNullOrWhiteSpace(raw)) { newPrice = existing.Price; break; }
             if (decimal.TryParse(raw, out newPrice) && newPrice >= 0) break;
             Console.WriteLine("  Invalid input. Please enter a valid price (0 or greater).");
         }
 
-        // --- Expiry Date ---
-        // Blank input = keep current (even if already expired).
-        // New date must be a future date.
+        // blank = keep the current date even if it's already expired
+        // entering a new date requires it to be in the future
         DateTime newExpiry;
         while (true)
         {
@@ -682,7 +600,6 @@ void HandleUpdateVaccine()
             if (string.IsNullOrWhiteSpace(raw))
             {
                 newExpiry = existing.ExpiryDate;
-                // Inform the user if they're keeping an expired date (not blocking, just a note)
                 if (existing.IsExpired())
                     Console.WriteLine($"  Note: '{existing.VaccineName}' is already expired. Consider setting a new date.");
                 break;
@@ -697,8 +614,7 @@ void HandleUpdateVaccine()
             Console.WriteLine("  Invalid input. Please enter a future date (MM/DD/YYYY).");
         }
 
-        // --- Minimum Stock Level ---
-        // Blank input = keep current; must be at least 1
+        // blank input keeps the current min stock; must be >= 1 if a new value is entered
         int newMin;
         while (true)
         {
@@ -730,9 +646,6 @@ void HandleUpdateVaccine()
     DisplayHelper.PressEnter();
 }
 
-// ── [5] Delete Product ───────────────────────────────
-// Permanently removes a vaccine from inventory after confirmation.
-// The deletion is logged in transaction history before removal.
 void HandleDeleteVaccine()
 {
     DisplayHelper.PrintSectionHeader("PRODUCT MANAGEMENT", "DELETE PRODUCT");
@@ -748,6 +661,7 @@ void HandleDeleteVaccine()
 
         var vaccine = manager.GetVaccineById(id)!;
         Console.WriteLine();
+        // show the product name so the user can confirm they picked the right one
         Console.WriteLine($"  Delete: [{vaccine.ProductId}] {vaccine.VaccineName}");
 
         if (!ReadConfirm($"  Confirm deletion? [Y/N]: "))
@@ -771,14 +685,8 @@ void HandleDeleteVaccine()
     DisplayHelper.PressEnter();
 }
 
-// ══════════════════════════════════════════════════
 // STOCK CONTROL
-// ══════════════════════════════════════════════════
 
-// ── [6] Restock Product ─────────────────────────────
-// Adds units to a product's stock quantity.
-// Warns if the product is expired or expiring within 30 days.
-// Asks for confirmation before calling manager.RestockVaccine().
 void HandleRestockVaccine()
 {
     DisplayHelper.PrintSectionHeader("STOCK CONTROL", "RESTOCK PRODUCT");
@@ -795,15 +703,15 @@ void HandleRestockVaccine()
         var vaccine = manager.GetVaccineById(id)!;
         bool proceed = true;
 
+        // warn if restocking an expired product — unusual but not blocked
         if (vaccine.IsExpired())
         {
-            // Warn the user — restocking an expired product is unusual
             Console.WriteLine($"\n  '{vaccine.VaccineName}' is EXPIRED  (expiry: {vaccine.ExpiryDate:MM/dd/yyyy}).");
             proceed = ReadConfirm("  Restocking an expired product is unusual. Proceed? [Y/N]: ");
         }
         else
         {
-            // Inform if expiry is within 30 days (not blocking, just a heads-up)
+            // inform if nearing expiry so the user can decide how much to order
             int daysLeft = (int)(vaccine.ExpiryDate.Date - DateTime.Today).TotalDays;
             if (daysLeft <= 30)
                 Console.WriteLine($"\n  Note: '{vaccine.VaccineName}' expires in {daysLeft} day(s) ({vaccine.ExpiryDate:MM/dd/yyyy}).");
@@ -838,10 +746,6 @@ void HandleRestockVaccine()
     DisplayHelper.PressEnter();
 }
 
-// ── [7] Deduct Stock ─────────────────────────────────
-// Removes units from a product's stock quantity.
-// Prevents deducting more than current stock.
-// Warns if the product is expired, or if the deduction brings stock to zero.
 void HandleDeductVaccine()
 {
     DisplayHelper.PrintSectionHeader("STOCK CONTROL", "DEDUCT STOCK");
@@ -858,9 +762,9 @@ void HandleDeductVaccine()
         var vaccine = manager.GetVaccineById(id)!;
         bool proceed = true;
 
+        // deducting from an expired vaccine is unusual — flag it but allow if confirmed
         if (vaccine.IsExpired())
         {
-            // Warn the user — deducting from an expired product is unusual
             Console.WriteLine($"\n  '{vaccine.VaccineName}' is EXPIRED  (expiry: {vaccine.ExpiryDate:MM/dd/yyyy}).");
             proceed = ReadConfirm("  Deducting from an expired product is unusual. Proceed? [Y/N]: ");
         }
@@ -871,7 +775,7 @@ void HandleDeductVaccine()
         }
         else
         {
-            // Keep asking for quantity until a valid deduction amount is entered
+            // loop until the user enters a quantity that won't go below zero
             int qty;
             while (true)
             {
@@ -880,7 +784,7 @@ void HandleDeductVaccine()
                 Console.WriteLine($"  Cannot deduct {qty}. Current stock is only {vaccine.Quantity}.");
             }
 
-            // Extra warning if this would bring stock to exactly zero
+            // extra confirmation if the deduction will zero out stock
             if (vaccine.Quantity - qty == 0)
             {
                 Console.WriteLine($"\n  This will bring '{vaccine.VaccineName}' to ZERO stock.");
@@ -903,7 +807,7 @@ void HandleDeductVaccine()
                 try
                 {
                     manager.DeductVaccine(id, qty);
-                    // Post-deduction check: notify if now out of stock
+                    // re-fetch to get the updated quantity for the out-of-stock notice
                     var updated = manager.GetVaccineById(id);
                     if (updated != null && updated.Quantity == 0)
                         Console.WriteLine($"\n  '{updated.VaccineName}' is now OUT OF STOCK. Please restock soon.");
@@ -920,13 +824,11 @@ void HandleDeductVaccine()
     DisplayHelper.PressEnter();
 }
 
-// ── [8] Low Stock Items ──────────────────────────────
-// Displays all products currently below their minimum stock level.
-// No user input required — just shows the table and waits for Enter.
 void HandleLowStock()
 {
     DisplayHelper.PrintSectionHeader("STOCK CONTROL", "LOW STOCK ITEMS");
 
+    // includes expired products since they also fall below their minimum threshold
     var lowStockVaccines = manager.GetLowStockVaccines();
     if (lowStockVaccines.Count == 0)
     {
@@ -941,13 +843,8 @@ void HandleLowStock()
     DisplayHelper.PressEnter();
 }
 
-// ══════════════════════════════════════════════════
 // CATEGORY MANAGEMENT
-// ══════════════════════════════════════════════════
 
-// ── [9] Add Category ────────────────────────────────
-// Creates a new vaccine category (e.g., COVID-19, Hepatitis B).
-// Duplicates and purely-numeric names are rejected at the service layer.
 void HandleAddCategory()
 {
     DisplayHelper.PrintSectionHeader("CATEGORY MANAGEMENT", "ADD CATEGORY");
@@ -980,8 +877,6 @@ void HandleAddCategory()
     DisplayHelper.PressEnter();
 }
 
-// ── [10] View Categories ────────────────────────────
-// Lists all categories with their IDs. No input required.
 void HandleViewCategories()
 {
     DisplayHelper.PrintSectionHeader("CATEGORY MANAGEMENT", "VIEW CATEGORIES");
@@ -993,6 +888,7 @@ void HandleViewCategories()
     }
     else
     {
+        // simple read-only list; no actions available here
         Console.WriteLine();
         Console.WriteLine($"  {"ID",-6} Category Name");
         Console.WriteLine("  " + new string('-', 36));
@@ -1004,24 +900,29 @@ void HandleViewCategories()
     DisplayHelper.PressEnter();
 }
 
-// ── [11] Update Category ────────────────────────────
-// Renames an existing category. Blank input keeps the current name.
-// Rejects names that conflict with another existing category.
 void HandleUpdateCategory()
 {
     DisplayHelper.PrintSectionHeader("CATEGORY MANAGEMENT", "UPDATE CATEGORY");
     Console.WriteLine("  Enter 0 at any prompt to go back.\n");
 
+    if (manager.GetCategories().Count == 0)
+    {
+        Console.WriteLine("  No categories to update.");
+        DisplayHelper.PressEnter();
+        return;
+    }
+
     bool keepGoing = true;
     while (keepGoing)
     {
+        // re-fetch each iteration in case a previous update changed the list
         var cats = manager.GetCategories();
-        if (cats.Count == 0) { Console.WriteLine("\n  No categories available to update."); break; }
+        if (cats.Count == 0) { Console.WriteLine("\n  No categories left."); break; }
 
         Console.WriteLine($"  {"ID",-6} Category Name");
         Console.WriteLine("  " + new string('-', 36));
-        foreach (var c in cats)
-            Console.WriteLine($"  {c.CategoryId,-6} {c.CategoryName}");
+        foreach (var cat in cats)
+            Console.WriteLine($"  {cat.CategoryId,-6} {cat.CategoryName}");
         Console.WriteLine("  " + new string('-', 36));
 
         int id;
@@ -1035,21 +936,10 @@ void HandleUpdateCategory()
         }
 
         var existing = manager.GetCategoryById(id)!;
-        Console.WriteLine($"\n  Current Name: {existing.CategoryName}");
+        string newName = ReadName($"  New Name [{existing.CategoryName}]: ", allowBack: true);
+        if (newName == "0") { DisplayHelper.PrintBack(); return; }
 
-        // Blank input = keep current name; purely numeric names are rejected
-        string newName;
-        while (true)
-        {
-            Console.Write($"  New Name [{existing.CategoryName}]: ");
-            string raw = Console.ReadLine() ?? string.Empty;
-            if (string.IsNullOrWhiteSpace(raw)) { newName = existing.CategoryName; break; }
-            string trimmed = raw.Trim();
-            if (trimmed.All(char.IsDigit)) { Console.WriteLine("  Invalid input. Name cannot be numbers only."); continue; }
-            newName = trimmed; break;
-        }
-
-        if (!ReadConfirm($"\n  Update category to '{newName}'? [Y/N]: "))
+        if (!ReadConfirm($"\n  Rename '{existing.CategoryName}' to '{newName}'? [Y/N]: "))
         {
             Console.WriteLine("  Cancelled.");
         }
@@ -1070,8 +960,6 @@ void HandleUpdateCategory()
     DisplayHelper.PressEnter();
 }
 
-// ── [12] Delete Category ────────────────────────────
-// Removes a category. Blocked if the category is assigned to any product.
 void HandleDeleteCategory()
 {
     DisplayHelper.PrintSectionHeader("CATEGORY MANAGEMENT", "DELETE CATEGORY");
@@ -1092,8 +980,8 @@ void HandleDeleteCategory()
 
         Console.WriteLine($"  {"ID",-6} Category Name");
         Console.WriteLine("  " + new string('-', 36));
-        foreach (var c in cats)
-            Console.WriteLine($"  {c.CategoryId,-6} {c.CategoryName}");
+        foreach (var cat in cats)
+            Console.WriteLine($"  {cat.CategoryId,-6} {cat.CategoryName}");
         Console.WriteLine("  " + new string('-', 36));
 
         int id;
@@ -1109,7 +997,7 @@ void HandleDeleteCategory()
         var found = manager.GetCategoryById(id)!;
         Console.WriteLine($"\n  You are about to delete: [{found.CategoryId}] {found.CategoryName}");
 
-        if (!ReadConfirm($"  Confirm deletion? [Y/N]: "))
+        if (!ReadConfirm("  Confirm deletion? [Y/N]: "))
         {
             Console.WriteLine("  Cancelled.");
         }
@@ -1122,7 +1010,7 @@ void HandleDeleteCategory()
             }
             catch (Exception ex)
             {
-                // If deletion fails (e.g., category in use), stop looping and return
+                // referential integrity error from manager — exit the loop so user sees the message
                 DisplayHelper.PrintError(ex.Message);
                 DisplayHelper.PressEnter();
                 return;
@@ -1136,18 +1024,12 @@ void HandleDeleteCategory()
     DisplayHelper.PressEnter();
 }
 
-// ══════════════════════════════════════════════════
 // SUPPLIER MANAGEMENT
-// ══════════════════════════════════════════════════
 
-// ── [13] Add Supplier ───────────────────────────────
-// Creates a new supplier. Contact number must be digits only, 7–15 chars.
-// Format validation happens in manager.AddSupplier() via ValidateContactNumber().
 void HandleAddSupplier()
 {
     DisplayHelper.PrintSectionHeader("SUPPLIER MANAGEMENT", "ADD SUPPLIER");
-    Console.WriteLine("  Enter 0 at any prompt to go back.");
-    Console.WriteLine("  Contact number: digits only, 7–15 chars, optional leading +\n");
+    Console.WriteLine("  Enter 0 at any prompt to go back.\n");
 
     bool keepGoing = true;
     while (keepGoing)
@@ -1155,9 +1037,11 @@ void HandleAddSupplier()
         string name = ReadName("  Supplier Name   : ", allowBack: true);
         if (name == "0") { DisplayHelper.PrintBack(); return; }
 
-        string contact = ReadText("  Contact Number  : ");
+        // ReadContactNumber enforces the digit-only format before passing to manager
+        string contact = ReadContactNumber("  Contact Number  : ", allowBack: true);
+        if (contact == "0") { DisplayHelper.PrintBack(); return; }
 
-        if (!ReadConfirm($"\n  Add supplier '{name}' ({contact})? [Y/N]: "))
+        if (!ReadConfirm($"\n  Add supplier '{name}'? [Y/N]: "))
         {
             Console.WriteLine("  Cancelled.");
         }
@@ -1178,8 +1062,6 @@ void HandleAddSupplier()
     DisplayHelper.PressEnter();
 }
 
-// ── [14] View Suppliers ─────────────────────────────
-// Lists all suppliers with their IDs and contact numbers. No input required.
 void HandleViewSuppliers()
 {
     DisplayHelper.PrintSectionHeader("SUPPLIER MANAGEMENT", "VIEW SUPPLIERS");
@@ -1191,6 +1073,7 @@ void HandleViewSuppliers()
     }
     else
     {
+        // simple read-only list; no actions available here
         Console.WriteLine();
         Console.WriteLine($"  {"ID",-6} {"Supplier Name",-26} Contact");
         Console.WriteLine("  " + new string('-', 50));
@@ -1202,15 +1085,17 @@ void HandleViewSuppliers()
     DisplayHelper.PressEnter();
 }
 
-// ── [15] Update Supplier ────────────────────────────
-// Edits a supplier's name and/or contact number.
-// Blank input keeps the current value.
-// Contact number format is validated in manager.UpdateSupplier().
 void HandleUpdateSupplier()
 {
     DisplayHelper.PrintSectionHeader("SUPPLIER MANAGEMENT", "UPDATE SUPPLIER");
-    Console.WriteLine("  Enter 0 at any prompt to go back.");
-    Console.WriteLine("  Contact number: digits only, 7–15 chars, optional leading +\n");
+    Console.WriteLine("  Enter 0 at any prompt to go back.\n");
+
+    if (manager.GetSuppliers().Count == 0)
+    {
+        Console.WriteLine("  No suppliers available to update.");
+        DisplayHelper.PressEnter();
+        return;
+    }
 
     bool keepGoing = true;
     while (keepGoing)
@@ -1238,8 +1123,6 @@ void HandleUpdateSupplier()
         Console.WriteLine($"\n  Updating: {existing.SupplierName}");
         Console.WriteLine("  Leave any field blank to keep the current value.\n");
 
-        // --- Supplier Name ---
-        // Blank = keep current; purely numeric names rejected
         string newName;
         while (true)
         {
@@ -1251,16 +1134,15 @@ void HandleUpdateSupplier()
             newName = trimmed; break;
         }
 
-        // --- Contact Number ---
-        // Blank = keep current; format validated downstream in manager.UpdateSupplier()
         string newContact;
         while (true)
         {
             Console.Write($"  New Contact [{existing.ContactNumber}]: ");
             string raw = Console.ReadLine() ?? string.Empty;
             if (string.IsNullOrWhiteSpace(raw)) { newContact = existing.ContactNumber; break; }
-            if (!string.IsNullOrWhiteSpace(raw.Trim())) { newContact = raw.Trim(); break; }
-            Console.WriteLine("  Invalid input. Please try again.");
+            string trimmed = raw.Trim();
+            if (System.Text.RegularExpressions.Regex.IsMatch(trimmed, @"^\+?[0-9]{7,15}$")) { newContact = trimmed; break; }
+            Console.WriteLine("  Invalid input. Contact number must be 7-15 digits (digits only, optional leading +).");
         }
 
         if (!ReadConfirm($"\n  Update supplier to '{newName}' / '{newContact}'? [Y/N]: "))
@@ -1284,9 +1166,6 @@ void HandleUpdateSupplier()
     DisplayHelper.PressEnter();
 }
 
-// ── [16] Delete Supplier ────────────────────────────
-// Removes a supplier after confirmation.
-// Blocked if the supplier is assigned to any product.
 void HandleDeleteSupplier()
 {
     DisplayHelper.PrintSectionHeader("SUPPLIER MANAGEMENT", "DELETE SUPPLIER");
@@ -1337,7 +1216,7 @@ void HandleDeleteSupplier()
             }
             catch (Exception ex)
             {
-                // If deletion fails (e.g., supplier in use), stop looping and return
+                // referential integrity error — exit loop so user sees the message clearly
                 DisplayHelper.PrintError(ex.Message);
                 DisplayHelper.PressEnter();
                 return;
@@ -1351,13 +1230,8 @@ void HandleDeleteSupplier()
     DisplayHelper.PressEnter();
 }
 
-// ══════════════════════════════════════════════════
 // REPORTS
-// ══════════════════════════════════════════════════
 
-// ── [17] Transaction History ────────────────────────
-// Displays the transaction audit log with optional filtering by action type.
-// Valid filters: ADD, RESTOCK, DEDUCT, UPDATE, DELETE, ALL (or Enter for ALL).
 void HandleViewTransactions()
 {
     DisplayHelper.PrintSectionHeader("REPORTS", "TRANSACTION HISTORY");
@@ -1368,21 +1242,20 @@ void HandleViewTransactions()
     {
         Console.WriteLine("  Filter: ADD / RESTOCK / DEDUCT / UPDATE / DELETE / ALL");
 
-        // Read and validate filter input
         string filter;
         while (true)
         {
             Console.Write("\n  Filter [action or Enter for ALL, 0 = back]: ");
             string raw = (Console.ReadLine() ?? string.Empty).Trim().ToUpper();
             if (raw == "0") { DisplayHelper.PrintBack(); return; }
-            if (string.IsNullOrWhiteSpace(raw)) { filter = "ALL"; break; } // Enter = show all
+            if (string.IsNullOrWhiteSpace(raw)) { filter = "ALL"; break; }
             if (ValidFilters.Contains(raw)) { filter = raw; break; }
             Console.WriteLine("  Invalid input. Use ADD, RESTOCK, DEDUCT, UPDATE, DELETE, or ALL.");
         }
 
-        // Display the filtered table and count
         DisplayHelper.ShowTransactionTable(manager.GetHistory(), filter);
 
+        // recount after display so the total matches what's actually shown
         int count = filter == "ALL"
             ? manager.GetHistory().Count
             : manager.GetHistory().Count(t => t.ActionType == filter);
@@ -1395,10 +1268,6 @@ void HandleViewTransactions()
     DisplayHelper.PressEnter();
 }
 
-// ── [18] Total Inventory Value ──────────────────────
-// Shows each product's quantity, unit price, and total value,
-// then displays the grand total across all products.
-// Formula used: Quantity × Price per product.
 void HandleTotalValue()
 {
     DisplayHelper.PrintSectionHeader("REPORTS", "TOTAL INVENTORY VALUE");
@@ -1411,7 +1280,7 @@ void HandleTotalValue()
         return;
     }
 
-    // Print value breakdown table
+    // per-product breakdown followed by a grand total
     Console.WriteLine();
     Console.WriteLine($"  {"Vaccine Name",-26} {"Qty",-8} {"Unit Price",-14} Total Value");
     Console.WriteLine("  " + new string('-', 62));
@@ -1419,7 +1288,6 @@ void HandleTotalValue()
         Console.WriteLine($"  {v.VaccineName,-26} {v.Quantity,-8} {"P" + v.Price.ToString("F2"),-14} P{v.GetTotalValue():F2}");
     Console.WriteLine("  " + new string('-', 62));
 
-    // Grand total (sum of all products)
     Console.WriteLine();
     Console.WriteLine($"  Grand Total : P{manager.ComputeTotalInventoryValue():F2}");
     Console.WriteLine($"  Products    : {vaccines.Count} type(s)");
